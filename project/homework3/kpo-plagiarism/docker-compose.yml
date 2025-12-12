@@ -1,0 +1,49 @@
+version: "3.8"
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: kpo-postgres
+    environment:
+      POSTGRES_USER: kpo
+      POSTGRES_PASSWORD: kpo
+      POSTGRES_DB: plagiarism
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./db-data:/var/lib/postgresql/data
+      - ./schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro
+    restart: unless-stopped
+
+  file-storage:
+    build: ./file-storage
+    container_name: kpo-file-storage
+    ports:
+      - "8081:8081"
+    volumes:
+      - ./file-storage/data:/app/data
+    restart: unless-stopped
+
+  file-analysis:
+    build: ./file-analysis
+    container_name: kpo-file-analysis
+    environment:
+      DATABASE_URL: postgres://kpo:kpo@postgres:5432/plagiarism?sslmode=disable
+    depends_on:
+      - postgres
+    ports:
+      - "8082:8082"
+    restart: unless-stopped
+
+  gateway:
+    build: ./gateway
+    container_name: kpo-gateway
+    environment:
+      STORAGE_URL: http://file-storage:8081
+      ANALYSIS_URL: http://file-analysis:8082
+    depends_on:
+      - file-storage
+      - file-analysis
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
